@@ -118,81 +118,63 @@
       if (exams.length === 0) return alert('請先新增考試！');
       currentExamIndex = 0;
       updateTime();
-      // 不立即開始倒數，僅初始化程序
-      // startExamCountdown(); // 移除此行
+      startExamCountdown();
       setInterval(updateTime, 1000); // 每秒更新時間
-      //alert('計時已開始，將在考試開始時自動啟動倒數。');     以更新
     }
 
     // 更新當前時間
     function updateTime() {
       const now = new Date();
       document.getElementById('clock').innerText = `現在時間：${now.toLocaleTimeString('zh-TW')}`;
-      // 檢查是否已經有考試需要開始
-      if (currentExamIndex >= 0 && currentExamIndex < exams.length) {
-        const currentExam = exams[currentExamIndex];
-        const [startHour, startMinute] = currentExam.startTime.split(':').map(Number);
-        const [endHour, endMinute] = currentExam.endTime.split(':').map(Number);
-
-        const startTime = new Date(now);
-        startTime.setHours(startHour, startMinute, 0, 0);
-        const endTime = new Date(now);
-        endTime.setHours(endHour, endMinute, 0, 0);
-
-        // 調整日期，如果考試時間已過則設置到明天
-        if (startTime < now && endTime < now) {
-          startTime.setDate(startTime.getDate() + 1);
-          endTime.setDate(endTime.getDate() + 1);
-        }
-
-        const timeUntilStart = Math.floor((startTime - now) / 1000); // 開始前的等待時間
-
-        // 如果尚未開始且沒有設置倒數計時
-        if (!countdownInterval && timeUntilStart > 0) {
-          startExamCountdown();
-        } else if (!countdownInterval && timeUntilStart <= 0 && now < endTime) {
-          // 如果考試已經開始但尚未結束
-          startCurrentExam(currentExam, currentExam.duration, startTime);
-        }
-      }
     }
 
     // 開始考試倒數計時
     function startExamCountdown() {
+      if (currentExamIndex >= exams.length) {
+        document.getElementById('exam-info').innerText = '恭喜你完成所有考試！';
+        showFinalResults();
+        return;
+      }
+
+      const now = new Date();
       const currentExam = exams[currentExamIndex];
       const [startHour, startMinute] = currentExam.startTime.split(':').map(Number);
       const [endHour, endMinute] = currentExam.endTime.split(':').map(Number);
 
-      const now = new Date();
       const startTime = new Date(now);
       startTime.setHours(startHour, startMinute, 0, 0);
       const endTime = new Date(now);
       endTime.setHours(endHour, endMinute, 0, 0);
 
-      // 調整日期，如果考試時間已過則設置到明天
+      // 如果開始時間已過，假設今天進行考試
       if (startTime < now && endTime < now) {
+        // 調整到明天
         startTime.setDate(startTime.getDate() + 1);
         endTime.setDate(endTime.getDate() + 1);
       }
 
+      const examDuration = currentExam.duration; // 以秒計算考試時長
       const timeUntilStart = Math.floor((startTime - now) / 1000); // 開始前的等待時間
 
       if (timeUntilStart > 0) {
         document.getElementById('exam-info').innerText = `下一場考試：${currentExam.subject}，開始時間：${startTime.toLocaleTimeString('zh-TW')}`;
         document.getElementById('countdown').innerText = `等待考試開始：${formatTime(timeUntilStart)}`;
 
+        // 等待考試開始
         countdownInterval = setInterval(() => {
           const nowInterval = new Date();
           const remaining = Math.floor((startTime - nowInterval) / 1000);
 
           if (remaining <= 0) {
             clearInterval(countdownInterval);
-            countdownInterval = null;
-            startCurrentExam(currentExam, currentExam.duration, startTime);
+            startCurrentExam(currentExam, examDuration, startTime);
           } else {
             document.getElementById('countdown').innerText = `等待考試開始：${formatTime(remaining)}`;
           }
         }, 1000);
+      } else {
+        // 考試已經開始，直接開始倒數
+        startCurrentExam(currentExam, examDuration, startTime);
       }
     }
 
@@ -217,17 +199,11 @@
           const nextStartTime = new Date(now);
           nextStartTime.setHours(nextStartHour, nextStartMinute, 0, 0);
 
-          // 調整日期，如果考試時間已過則設置到明天
-          if (nextStartTime < now) {
-            nextStartTime.setDate(nextStartTime.getDate() + 1);
-          }
-
           // 如果已經到了下一場考試的開始時間，結束當前考試
           if (now >= nextStartTime) {
             overTime = Math.floor((now - nextStartTime) / 1000);
             recordExamResult(timeElapsed, overTime);
             clearInterval(countdownInterval);
-            countdownInterval = null;
             startExamCountdown();
             return;
           }
@@ -244,10 +220,12 @@
         document.getElementById('countdown').innerText = `倒數：${displayTime}`;
 
         if (isOverTime) {
-          // 只在最後一場考試中允許繼續超時
-          if (currentExamIndex + 1 >= exams.length) {
+          // 只在下一場考試還未開始的情況下自動結束
+          if (currentExamIndex + 1 < exams.length) {
+            // 不自動結束，只顯示超時
+            // 等待用戶手動停止
+          } else {
             // 最後一場考試，允許超時直到手動停止
-            // 不自動結束，只顯示超時，等待用戶手動停止
           }
         }
       }, 1000);
@@ -264,7 +242,6 @@
     // 記錄考試結果
     function recordExamResult(timeElapsed, overTime) {
       clearInterval(countdownInterval);
-      countdownInterval = null;
       actualEndTime = new Date();
 
       // 計算實際用時（秒）
@@ -278,12 +255,6 @@
       removeStopButton();
 
       currentExamIndex++;
-      if (currentExamIndex < exams.length) {
-        startExamCountdown();
-      } else {
-        document.getElementById('exam-info').innerText = '恭喜你完成所有考試！';
-        showFinalResults();
-      }
     }
 
     // 創建停止按鈕
@@ -294,12 +265,11 @@
         button.innerText = '停止作答';
         button.onclick = () => {
           clearInterval(countdownInterval);
-          countdownInterval = null;
           actualEndTime = new Date(); // 更新實際結束時間為提早交卷時間
           const timeElapsed = Math.floor((actualEndTime - examStartTime) / 1000);
           const overTime = Math.max(0, timeElapsed - exams[currentExamIndex].duration);
           recordExamResult(timeElapsed, overTime);
-          // 不需要再開始下一場倒數
+          startExamCountdown();
         };
         document.body.appendChild(button);
       }
@@ -324,6 +294,6 @@
     }
   </script>
 
-  <button onclick="startProgram()">資料輸入完成</button>
+  <button onclick="startProgram()">開始計時</button>
 </body>
 </html>
